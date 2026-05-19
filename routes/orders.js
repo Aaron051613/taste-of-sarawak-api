@@ -1,5 +1,6 @@
 const { getPool, withTransaction } = require('../db')
 const { asyncHandler, floatOrZero, intOrNull, textOrNull } = require('../utils')
+const { broadcastOrderEvent } = require('../sse')
 
 const generateOrderCode = () => `SB-${String(Date.now())}`
 
@@ -171,6 +172,8 @@ const addOrderHandler = asyncHandler(async (req, res) => {
     message: 'Order saved',
     order: result,
   })
+
+  broadcastOrderEvent('order_created', { orderCode: result.orderCode || result.order_code })
 })
 
 const getOrdersHandler = asyncHandler(async (req, res) => {
@@ -194,6 +197,7 @@ const getOrdersHandler = asyncHandler(async (req, res) => {
         await connection.query("UPDATE table_sessions SET status = 'available'")
       })
       res.json({ message: 'All orders reset' })
+      broadcastOrderEvent('orders_reset')
       return
     }
 
@@ -216,6 +220,7 @@ const getOrdersHandler = asyncHandler(async (req, res) => {
     })
 
     res.json({ message: 'Order deleted' })
+    broadcastOrderEvent('order_deleted', { orderCode: order.orderCode })
     return
   }
 
@@ -277,6 +282,7 @@ const getOrdersHandler = asyncHandler(async (req, res) => {
 
     const updated = await fetchOrder(pool, order.id)
     res.json({ message: 'Order updated', order: updated })
+    broadcastOrderEvent('order_updated', { orderCode: updated?.orderCode || order.orderCode })
     return
   }
 

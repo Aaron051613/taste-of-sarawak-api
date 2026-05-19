@@ -11,6 +11,7 @@ const ratingsHandler = require('./routes/ratings')
 const tablesHandler = require('./routes/tables')
 const { handler: uploadHandler, upload } = require('./routes/upload')
 const adminActivityHandler = require('./routes/adminActivity')
+const { addClient, startHeartbeat } = require('./sse')
 
 const app = express()
 
@@ -32,6 +33,17 @@ app.all('/ratings.php', ratingsHandler)
 app.all('/tables.php', tablesHandler)
 app.post('/upload.php', upload.single('image'), uploadHandler)
 app.all('/adminActivity.php', adminActivityHandler)
+app.get('/order-stream.php', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.flushHeaders()
+
+  res.write('retry: 3000\n\n')
+  addClient(res)
+  startHeartbeat(res)
+})
 
 app.use((err, req, res, next) => {
   const status = err.statusCode || err.status || 500
