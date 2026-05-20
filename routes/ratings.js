@@ -3,17 +3,17 @@ const { asyncHandler } = require('../utils')
 
 const fetchRatingList = async (connection, menuItemId) => {
   if (menuItemId) {
-    const [rows] = await connection.query(
-      'SELECT id, menu_item_id, rating, comment, created_at FROM ratings WHERE menu_item_id = ? ORDER BY created_at DESC, id DESC',
+    const result = await connection.query(
+      'SELECT id, menu_item_id, rating, comment, created_at FROM ratings WHERE menu_item_id = $1 ORDER BY created_at DESC, id DESC',
       [menuItemId]
     )
-    return rows
+    return result.rows
   }
 
-  const [rows] = await connection.query(
+  const result = await connection.query(
     'SELECT id, menu_item_id, rating, comment, created_at FROM ratings ORDER BY created_at DESC, id DESC'
   )
-  return rows
+  return result.rows
 }
 
 const handler = asyncHandler(async (req, res) => {
@@ -38,7 +38,7 @@ const handler = asyncHandler(async (req, res) => {
       return
     }
 
-    await pool.query('DELETE FROM ratings WHERE id = ?', [id])
+    await pool.query('DELETE FROM ratings WHERE id = $1', [id])
     res.json({ message: 'Rating deleted' })
     return
   }
@@ -52,15 +52,15 @@ const handler = asyncHandler(async (req, res) => {
     return
   }
 
-  const [result] = await pool.query(
-    'INSERT INTO ratings (menu_item_id, rating, comment) VALUES (?, ?, ?)',
+  const result = await pool.query(
+    'INSERT INTO ratings (menu_item_id, rating, comment) VALUES ($1, $2, $3) RETURNING id',
     [targetMenuId, rating, comment]
   )
 
   res.status(201).json({
     message: 'Rating saved',
     rating: {
-      id: Number(result.insertId),
+      id: Number(result.rows[0].id),
       menu_item_id: targetMenuId,
       rating,
       comment,

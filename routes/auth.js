@@ -21,10 +21,10 @@ const handler = asyncHandler(async (req, res) => {
   const pool = getPool()
 
   if (req.method === 'GET') {
-    const [rows] = await pool.query(
+    const result = await pool.query(
       'SELECT id, name, email, role, created_at FROM users ORDER BY id ASC'
     )
-    res.json({ users: rows })
+    res.json({ users: result.rows })
     return
   }
 
@@ -42,20 +42,20 @@ const handler = asyncHandler(async (req, res) => {
       return
     }
 
-    const [exists] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [email])
-    if (exists.length > 0) {
+    const exists = await pool.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email])
+    if (exists.rows.length > 0) {
       res.status(409).json({ message: 'Email already exists' })
       return
     }
 
     const passwordHash = await bcrypt.hash(password, 10)
-    const [result] = await pool.query(
-      'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+    const result = await pool.query(
+      'INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id',
       [name, email, passwordHash, role]
     )
 
     const user = {
-      id: result.insertId,
+      id: result.rows[0].id,
       name,
       email,
       role,
@@ -102,11 +102,11 @@ const handler = asyncHandler(async (req, res) => {
     return
   }
 
-  const [rows] = await pool.query(
-    'SELECT id, name, email, password_hash, role FROM users WHERE email = ? LIMIT 1',
+  const result = await pool.query(
+    'SELECT id, name, email, password_hash, role FROM users WHERE email = $1 LIMIT 1',
     [email]
   )
-  const userRow = rows[0]
+  const userRow = result.rows[0]
 
   if (!userRow) {
     res.status(401).json({ message: 'Invalid login' })

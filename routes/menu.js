@@ -2,38 +2,38 @@ const { getPool, withTransaction } = require('../db')
 const { asyncHandler, floatOrZero } = require('../utils')
 
 const fetchMenuSizes = async (connection, menuItemId) => {
-  const [rows] = await connection.query(
-    'SELECT label, price FROM menu_sizes WHERE menu_item_id = ? ORDER BY sort_order, id',
+  const result = await connection.query(
+    'SELECT label, price FROM menu_sizes WHERE menu_item_id = $1 ORDER BY sort_order, id',
     [menuItemId]
   )
-  return rows.map((row) => ({
+  return result.rows.map((row) => ({
     label: row.label,
     price: Number(row.price),
   }))
 }
 
 const fetchMenuAddons = async (connection, menuItemId) => {
-  const [rows] = await connection.query(
-    'SELECT name, price FROM menu_addons WHERE menu_item_id = ? ORDER BY sort_order, id',
+  const result = await connection.query(
+    'SELECT name, price FROM menu_addons WHERE menu_item_id = $1 ORDER BY sort_order, id',
     [menuItemId]
   )
-  return rows.map((row) => ({
+  return result.rows.map((row) => ({
     name: row.name,
     price: Number(row.price),
   }))
 }
 
 const fetchMenuDrinkOptions = async (connection, menuItemId) => {
-  const [rows] = await connection.query(
-    'SELECT label FROM menu_drink_options WHERE menu_item_id = ? ORDER BY sort_order, id',
+  const result = await connection.query(
+    'SELECT label FROM menu_drink_options WHERE menu_item_id = $1 ORDER BY sort_order, id',
     [menuItemId]
   )
-  return rows.map((row) => row.label)
+  return result.rows.map((row) => row.label)
 }
 
 const fetchMenuItem = async (connection, id) => {
-  const [rows] = await connection.query('SELECT * FROM menu_items WHERE id = ? LIMIT 1', [id])
-  const item = rows[0]
+  const result = await connection.query('SELECT * FROM menu_items WHERE id = $1 LIMIT 1', [id])
+  const item = result.rows[0]
   if (!item) return null
 
   return {
@@ -49,12 +49,12 @@ const fetchMenuItem = async (connection, id) => {
 }
 
 const fetchMenuItems = async (connection) => {
-  const [rows] = await connection.query(
-    'SELECT id, name, category, description, image FROM menu_items WHERE active = 1 ORDER BY sort_order, id'
+  const result = await connection.query(
+    'SELECT id, name, category, description, image FROM menu_items WHERE active = true ORDER BY sort_order, id'
   )
 
   const items = []
-  for (const row of rows) {
+  for (const row of result.rows) {
     const id = Number(row.id)
     items.push({
       id,
@@ -72,14 +72,14 @@ const fetchMenuItems = async (connection) => {
 }
 
 const saveMenuChildren = async (connection, menuItemId, payload) => {
-  await connection.query('DELETE FROM menu_sizes WHERE menu_item_id = ?', [menuItemId])
-  await connection.query('DELETE FROM menu_addons WHERE menu_item_id = ?', [menuItemId])
-  await connection.query('DELETE FROM menu_drink_options WHERE menu_item_id = ?', [menuItemId])
+  await connection.query('DELETE FROM menu_sizes WHERE menu_item_id = $1', [menuItemId])
+  await connection.query('DELETE FROM menu_addons WHERE menu_item_id = $1', [menuItemId])
+  await connection.query('DELETE FROM menu_drink_options WHERE menu_item_id = $1', [menuItemId])
 
   const sizes = Array.isArray(payload.sizes) ? payload.sizes : []
   for (const [index, size] of sizes.entries()) {
     await connection.query(
-      'INSERT INTO menu_sizes (menu_item_id, label, price, sort_order) VALUES (?, ?, ?, ?)',
+      'INSERT INTO menu_sizes (menu_item_id, label, price, sort_order) VALUES ($1, $2, $3, $4)',
       [
         menuItemId,
         String(size.label || '').trim(),
@@ -93,7 +93,7 @@ const saveMenuChildren = async (connection, menuItemId, payload) => {
     const addons = Array.isArray(payload.addons) ? payload.addons : []
     for (const [index, addon] of addons.entries()) {
       await connection.query(
-        'INSERT INTO menu_addons (menu_item_id, name, price, sort_order) VALUES (?, ?, ?, ?)',
+        'INSERT INTO menu_addons (menu_item_id, name, price, sort_order) VALUES ($1, $2, $3, $4)',
         [
           menuItemId,
           String(addon.name || '').trim(),
@@ -110,7 +110,7 @@ const saveMenuChildren = async (connection, menuItemId, payload) => {
     if (!label) continue
 
     await connection.query(
-      'INSERT INTO menu_drink_options (menu_item_id, label, sort_order) VALUES (?, ?, ?)',
+      'INSERT INTO menu_drink_options (menu_item_id, label, sort_order) VALUES ($1, $2, $3)',
       [menuItemId, label, index + 1]
     )
   }
@@ -154,14 +154,14 @@ const handler = asyncHandler(async (req, res) => {
         throw new Error('Menu item id is required')
       }
 
-      await connection.query('DELETE FROM menu_items WHERE id = ?', [targetId])
+      await connection.query('DELETE FROM menu_items WHERE id = $1', [targetId])
       return { status: 200, payload: { message: 'Menu item deleted' } }
     }
 
     if (req.method === 'POST' && payload.id) {
       const targetId = Number(payload.id)
       await connection.query(
-        'UPDATE menu_items SET name = ?, category = ?, description = ?, image = ? WHERE id = ?',
+        'UPDATE menu_items SET name = $1, category = $2, description = $3, image = $4, updated_at = NOW() WHERE id = $5',
         [name, category, description, image, targetId]
       )
       await saveMenuChildren(connection, targetId, payload)
@@ -172,18 +172,18 @@ const handler = asyncHandler(async (req, res) => {
       if (req.method === 'PATCH' && payload.id) {
         const targetId = Number(payload.id)
         await connection.query(
-          'UPDATE menu_items SET name = ?, category = ?, description = ?, image = ? WHERE id = ?',
+          'UPDATE menu_items SET name = $1, category = $2, description = $3, image = $4, updated_at = NOW() WHERE id = $5',
           [name, category, description, image, targetId]
         )
         await saveMenuChildren(connection, targetId, payload)
         return { status: 200, payload: { item: await fetchMenuItem(connection, targetId) } }
       }
 
-      const [result] = await connection.query(
-        'INSERT INTO menu_items (name, category, description, image, sort_order) VALUES (?, ?, ?, ?, ?)',
+      const result = await connection.query(
+        'INSERT INTO menu_items (name, category, description, image, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id',
         [name, category, description, image, Number(payload.sort_order || 0)]
       )
-      const targetId = Number(result.insertId)
+      const targetId = Number(result.rows[0].id)
       await saveMenuChildren(connection, targetId, payload)
       return { status: 201, payload: { item: await fetchMenuItem(connection, targetId) } }
     }

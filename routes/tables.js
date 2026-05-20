@@ -4,11 +4,11 @@ const { asyncHandler, intOrNull, textOrNull } = require('../utils')
 const fetchTableOverview = async (connection) => {
   const tableRows = []
   for (let tableNumber = 1; tableNumber <= 10; tableNumber += 1) {
-    const [rows] = await connection.query(
-      'SELECT table_number, status FROM table_sessions WHERE table_number = ? LIMIT 1',
+    const result = await connection.query(
+      'SELECT table_number, status FROM table_sessions WHERE table_number = $1 LIMIT 1',
       [tableNumber]
     )
-    const session = rows[0] || { table_number: tableNumber, status: 'available' }
+    const session = result.rows[0] || { table_number: tableNumber, status: 'available' }
 
     tableRows.push({
       tableNumber,
@@ -23,7 +23,7 @@ const ensureTableOccupied = async (connection, tableNumber) => {
   if (!tableNumber) return
 
   await connection.query(
-    'INSERT INTO table_sessions (table_number, status) VALUES (?, ?) ON DUPLICATE KEY UPDATE status = VALUES(status)',
+    'INSERT INTO table_sessions (table_number, status) VALUES ($1, $2) ON CONFLICT (table_number) DO UPDATE SET status = EXCLUDED.status',
     [tableNumber, 'occupied']
   )
 }
@@ -31,14 +31,14 @@ const ensureTableOccupied = async (connection, tableNumber) => {
 const syncTableSessionIfIdle = async (connection, tableNumber) => {
   if (!tableNumber) return
 
-  const [rows] = await connection.query(
-    'SELECT COUNT(*) AS active_count FROM orders WHERE table_number = ? AND payment <> ?',
+  const result = await connection.query(
+    'SELECT COUNT(*) AS active_count FROM orders WHERE table_number = $1 AND payment <> $2',
     [tableNumber, 'Paid']
   )
-  const activeCount = Number(rows[0]?.active_count || 0)
+  const activeCount = Number(result.rows[0]?.active_count || 0)
 
   const status = activeCount > 0 ? 'occupied' : 'available'
-  await connection.query('UPDATE table_sessions SET status = ? WHERE table_number = ?', [status, tableNumber])
+  await connection.query('UPDATE table_sessions SET status = $1 WHERE table_number = $2', [status, tableNumber])
 }
 
 const handler = asyncHandler(async (req, res) => {
