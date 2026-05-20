@@ -158,16 +158,6 @@ const handler = asyncHandler(async (req, res) => {
       return { status: 200, payload: { message: 'Menu item deleted' } }
     }
 
-    if (req.method === 'POST' && payload.id) {
-      const targetId = Number(payload.id)
-      await connection.query(
-        'UPDATE menu_items SET name = $1, category = $2, description = $3, image = $4, updated_at = NOW() WHERE id = $5',
-        [name, category, description, image, targetId]
-      )
-      await saveMenuChildren(connection, targetId, payload)
-      return { status: 200, payload: { item: await fetchMenuItem(connection, targetId) } }
-    }
-
     if (req.method === 'PATCH' || req.method === 'POST') {
       if (req.method === 'PATCH' && payload.id) {
         const targetId = Number(payload.id)
