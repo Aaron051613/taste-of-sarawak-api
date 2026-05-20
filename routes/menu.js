@@ -149,7 +149,7 @@ const handler = asyncHandler(async (req, res) => {
 
   const result = await withTransaction(async (connection) => {
     if (req.method === 'DELETE') {
-      const targetId = id || Number(payload.id || 0)
+      const targetId = Number(req.query.id || payload.id || 0)
       if (!targetId) {
         throw new Error('Menu item id is required')
       }
