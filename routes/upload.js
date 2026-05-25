@@ -18,11 +18,15 @@ const handler = asyncHandler(async (req, res) => {
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
-  if (!req.file) {
-    return res.status(422).json({ message: 'No image uploaded' })
+  const file = req.file || (Array.isArray(req.files) ? req.files[0] : null)
+  if (!file) {
+    return res.status(422).json({
+      message: 'No image uploaded',
+      fields: Object.keys(req.body || {}),
+    })
   }
 
-  const original = path.basename(req.file.originalname || '')
+  const original = path.basename(file.originalname || '')
   const ext = path.extname(original)
   const base = path.basename(original, ext)
 
@@ -39,8 +43,8 @@ const handler = asyncHandler(async (req, res) => {
   // Upload to Supabase Storage
   const { data, error } = await supabase.storage
     .from('menu-images')
-    .upload(filePath, req.file.buffer, {
-      contentType: req.file.mimetype,
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
       upsert: false,
     })
 

@@ -31,7 +31,7 @@ app.all('/addOrder.php', addOrderHandler)
 app.all('/getOrders.php', getOrdersHandler)
 app.all('/ratings.php', ratingsHandler)
 app.all('/tables.php', tablesHandler)
-app.post('/upload.php', upload.single('image'), uploadHandler)
+app.post('/upload.php', upload.any(), uploadHandler)
 app.all('/adminActivity.php', adminActivityHandler)
 
 app.use((err, req, res, next) => {
