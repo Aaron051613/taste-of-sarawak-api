@@ -6,12 +6,11 @@ const { asyncHandler } = require('../utils')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_ANON_KEY
 )
 
 // Store file in memory instead of local disk
 const storage = multer.memoryStorage()
-
 const upload = multer({ storage })
 
 const handler = asyncHandler(async (req, res) => {
@@ -54,10 +53,9 @@ const handler = asyncHandler(async (req, res) => {
   }
 
   // Public image URL
-  const publicUrl =
-    `${process.env.SUPABASE_URL}/storage/v1/object/public/menu-images/${filePath}`
+  const publicUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/menu-images/${filePath}`
 
-  res.status(201).json({
+  return res.status(201).json({
     message: 'Uploaded',
     path: filePath,
     url: publicUrl,
