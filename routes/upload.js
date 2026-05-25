@@ -4,16 +4,20 @@ const multer = require('multer')
 const { createClient } = require('@supabase/supabase-js')
 const { asyncHandler } = require('../utils')
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-)
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Store file in memory instead of local disk
 const storage = multer.memoryStorage()
 const upload = multer({ storage })
 
 const handler = asyncHandler(async (req, res) => {
+  if (!supabaseUrl || !supabaseKey) {
+    return res.status(500).json({ message: 'Supabase config missing' })
+  }
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
   }
