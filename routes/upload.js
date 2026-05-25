@@ -1,59 +1,66 @@
-const fs = require('fs')
-const path = require('path')
 const crypto = require('crypto')
+const path = require('path')
 const multer = require('multer')
+const { createClient } = require('@supabase/supabase-js')
 const { asyncHandler } = require('../utils')
 
-const uploadsDir = path.join(__dirname, '..', 'uploads')
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+)
 
-const ensureUploadsDir = () => {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true })
-  }
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    try {
-      ensureUploadsDir()
-      cb(null, uploadsDir)
-    } catch (error) {
-      cb(error)
-    }
-  },
-  filename: (req, file, cb) => {
-    const original = path.basename(file.originalname || '')
-    const ext = path.extname(original)
-    const base = path.basename(original, ext)
-    const safeBase = base.replace(/[^A-Za-z0-9-_]/g, '-')
-    const timestamp = Date.now()
-    const random = crypto.randomBytes(4).toString('hex')
-    const filename = `${safeBase}_${timestamp}_${random}${ext}`.toLowerCase()
-    cb(null, filename)
-  },
-})
+// Store file in memory instead of local disk
+const storage = multer.memoryStorage()
 
 const upload = multer({ storage })
 
 const handler = asyncHandler(async (req, res) => {
   if (req.method !== 'POST') {
-    res.status(405).json({ message: 'Method not allowed' })
-    return
+    return res.status(405).json({ message: 'Method not allowed' })
   }
 
   if (!req.file) {
-    res.status(422).json({ message: 'No image uploaded' })
-    return
+    return res.status(422).json({ message: 'No image uploaded' })
   }
 
-  const filename = req.file.filename
-  const baseUrl = `${req.protocol}://${req.get('host')}`
-  const url = `${baseUrl}/uploads/${filename}`
+  const original = path.basename(req.file.originalname || '')
+  const ext = path.extname(original)
+  const base = path.basename(original, ext)
+
+  const safeBase = base.replace(/[^A-Za-z0-9-_]/g, '-')
+
+  const timestamp = Date.now()
+  const random = crypto.randomBytes(4).toString('hex')
+
+  const filename =
+    `${safeBase}_${timestamp}_${random}${ext}`.toLowerCase()
+
+  const filePath = `menus/${filename}`
+
+  // Upload to Supabase Storage
+  const { data, error } = await supabase.storage
+    .from('menu-images')
+    .upload(filePath, req.file.buffer, {
+      contentType: req.file.mimetype,
+      upsert: false,
+    })
+
+  if (error) {
+    console.error(error)
+    return res.status(500).json({
+      message: 'Upload failed',
+      error: error.message,
+    })
+  }
+
+  // Public image URL
+  const publicUrl =
+    `${process.env.SUPABASE_URL}/storage/v1/object/public/menu-images/${filePath}`
 
   res.status(201).json({
     message: 'Uploaded',
-    path: `/uploads/${filename}`,
-    url,
+    path: filePath,
+    url: publicUrl,
   })
 })
 
