@@ -136,16 +136,6 @@ const handler = asyncHandler(async (req, res) => {
   }
 
   const payload = req.body || {}
-  const name = String(payload.name || '').trim()
-  const category = String(payload.category || '').trim()
-  const description = String(payload.description || '').trim()
-  const image = String(payload.image || '').trim()
-  const sizes = Array.isArray(payload.sizes) ? payload.sizes : []
-
-  if (!name || !category || !description || !image || sizes.length === 0) {
-    res.status(422).json({ message: 'Missing menu item fields' })
-    return
-  }
 
   const result = await withTransaction(async (connection) => {
     if (req.method === 'DELETE') {
@@ -156,6 +146,16 @@ const handler = asyncHandler(async (req, res) => {
 
       await connection.query('DELETE FROM menu_items WHERE id = $1', [targetId])
       return { status: 200, payload: { message: 'Menu item deleted' } }
+    }
+
+    const name = String(payload.name || '').trim()
+    const category = String(payload.category || '').trim()
+    const description = String(payload.description || '').trim()
+    const image = String(payload.image || '').trim()
+    const sizes = Array.isArray(payload.sizes) ? payload.sizes : []
+
+    if (!name || !category || !description || !image || sizes.length === 0) {
+      return { status: 422, payload: { message: 'Missing menu item fields' } }
     }
 
     if (req.method === 'PATCH' || req.method === 'POST') {
